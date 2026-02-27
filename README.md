@@ -1,2 +1,2 @@
-# signal_to_noise
+# Signal to Noise
 Rework Propagation as a Phase Transition Trigger in Socio-Technical Systems
