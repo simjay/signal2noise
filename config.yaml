@@ -1,0 +1,118 @@
+seed: 42
+n_runs: 200
+ticks_per_run: 300
+team_size: 4
+integration_check_interval: 1
+rework_effort_fraction: 0.4
+retest_effort_fraction: 0.25
+
+task_graph:
+  type: random_dag
+  n_tasks: 12
+  edge_prob: 0.25
+  max_in_degree: 3
+
+task_effort_distribution:
+  kind: lognormal
+  mean: 2.0
+  sigma: 0.35
+
+agent_distributions:
+  skill_speed:
+    kind: lognormal
+    mean: 0.0
+    sigma: 0.2
+  defect_rate:
+    kind: beta
+    a: 2.0
+    b: 20.0
+    scale: 1.0
+  clarification_need:
+    kind: uniform
+    low: 0.08
+    high: 0.20
+  response_delay_async:
+    kind: uniform
+    low: 2.0
+    high: 6.0
+  response_delay_sync:
+    kind: uniform
+    low: 0.2
+    high: 1.0
+  cost_per_sync_minute:
+    kind: fixed
+    value: 1.0
+  cost_per_message:
+    kind: fixed
+    value: 0.05
+
+propagation:
+  base_propagation: 0.05
+  coupling_strength: 0.6
+  p_change: 0.001530666
+  p_signal_change: 0.001530666
+  p_noise_change: 0.004592
+  signal_shock_multiplier: 2.5
+
+mode_effects:
+  misalignment_factor_async: 1.2
+  misalignment_factor_sync: 0.35
+  defect_multiplier_async: 1.3
+  defect_multiplier_sync: 0.7
+  productivity_factor_async: 0.98
+  productivity_factor_sync: 1.05
+
+policy:
+  type: swarm
+  W: 10
+  T_enter: 0.9
+  T_exit: 0.5
+  K: 6
+  trigger_metric: snr
+  snr_epsilon: 1.0
+  use_gap_gate: true
+  gap_gate_mode: or
+  gap_enter_threshold: 1.0
+  gap_window: 2
+  cooldown_ticks: 2
+
+costs:
+  cost_per_sync_minute: 1.0
+  cost_per_message: 0.05
+
+metrics:
+  task_score_weights:
+    unit_pass: 0.4
+    integration: 0.4
+    spec: 0.2
+  cognitive_load_lambda: 3.0
+  sync_fatigue_multiplier: 1.3
+  sync_fatigue_exponent: 1.0
+  integration_failure_penalty: 1.6
+  bounce_penalty_weight: 0.4
+  demand_signal_weight: 1.0
+  demand_noise_weight: 0.25
+  demand_rework_weight: 0.5
+  sync_supply_base: 2.0
+  async_supply_base: 0.8
+  message_supply_factor: 0.05
+  gap_high_threshold: 1.0
+
+# Lean primary comparison: 3 modes only.
+sweep:
+  policy.type: [async_only, always_sync, swarm]
+
+# Bucket 1 stress ladder defines 3 pressure regimes:
+# low (q50), near_threshold (q90), high (q99), derived from Jira pressure quantiles.
+stress_ladder:
+  enabled: true
+  multipliers: [1.0, 2.710565, 3.03903]
+  parameters:
+    propagation.p_signal_change:
+      anchor: 0.001530666
+      min: 0.0
+      max: 1.0
+    propagation.base_propagation:
+      anchor: 0.05
+      min: 0.01
+      max: 1.0
