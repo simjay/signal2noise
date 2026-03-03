@@ -73,6 +73,20 @@ Run experiment:
 s2n run --config config.yaml --out results
 ```
 
+Run Jira-anchored baseline track:
+
+```bash
+s2n run --config config_baseline.yaml --out results/baseline
+s2n resources --in results/baseline --out results/baseline/resources
+```
+
+Run stress-discrimination track:
+
+```bash
+s2n run --config config_stress.yaml --out results/stress
+s2n resources --in results/stress --out results/stress/resources
+```
+
 Build summary tables:
 
 ```bash
@@ -122,6 +136,7 @@ From `s2n run`:
 From `s2n resources`:
 - `results/resources/mode_regime_summary.csv`
 - `results/resources/signal_capture_fixed_cost.csv`
+- `results/resources/core_claim_evidence.csv`
 - `results/resources/naive_vs_swarm_ablation.csv` (only if `naive_trigger` is present in runs)
 
 Optional sweep outputs used in deeper analysis:
