@@ -83,6 +83,9 @@ class ProjectState:
     rework_events_per_tick: list[int] = field(default_factory=list)
     signal_events_per_tick: list[int] = field(default_factory=list)
     noise_events_per_tick: list[int] = field(default_factory=list)
+    exogenous_signal_per_tick: list[int] = field(default_factory=list)
+    exogenous_noise_per_tick: list[int] = field(default_factory=list)
+    coordination_backlog: float = 0.0
     demand_per_tick: list[float] = field(default_factory=list)
     supply_per_tick: list[float] = field(default_factory=list)
     gap_per_tick: list[float] = field(default_factory=list)

@@ -46,6 +46,24 @@ def _is_signal_rework_reason(reason: str) -> bool:
     return reason in {"invalidated", "stale_dependency", "exogenous_change"}
 
 
+def _agent_coord_capacity(
+    agent: Agent,
+    mode: Mode,
+    mode_scale_async: float,
+    mode_scale_sync: float,
+    busy_penalty: float,
+    is_busy: bool,
+) -> float:
+    # Coordination capacity is an agent property, not a mode constant:
+    # delay-limited responsiveness scaled by skill and current task load.
+    delay = agent.response_delay_async if mode == Mode.ASYNC else agent.response_delay_sync
+    delay_factor = 1.0 / (1.0 + max(0.0, delay))
+    skill_factor = max(0.5, min(1.5, agent.skill_speed))
+    mode_scale = mode_scale_async if mode == Mode.ASYNC else mode_scale_sync
+    load_factor = busy_penalty if is_busy else 1.0
+    return max(0.0, mode_scale * delay_factor * skill_factor * load_factor)
+
+
 def log_event(
     project: ProjectState,
     t: int,
@@ -265,13 +283,19 @@ def apply_exogenous_changes(project: ProjectState, cfg: Config, t: int, rng: ran
 
     roots: list[tuple[str, float]] = []
     for task in project.tasks.values():
-        if task.state not in (TaskState.READY_FOR_TEST, TaskState.DONE):
-            continue
         draw = rng.random()
         if draw >= p_total:
             continue
 
         is_signal = draw < p_signal_change
+        if is_signal:
+            project.exogenous_signal_per_tick[-1] += 1
+        else:
+            project.exogenous_noise_per_tick[-1] += 1
+
+        if task.state not in (TaskState.READY_FOR_TEST, TaskState.DONE):
+            continue
+
         if is_signal:
             task.version += 1
             log_event(project, t, "TASK_VERSION_CHANGE", task_id=task.id, meta={"source": signal_source})
@@ -356,17 +380,27 @@ def compute_run_metrics(project: ProjectState, cfg: Config, makespan: int) -> di
     cognitive_lambda = float(mcfg.get("cognitive_load_lambda", 0.5))
     sync_fatigue_multiplier = float(mcfg.get("sync_fatigue_multiplier", 1.0))
     sync_fatigue_exponent = float(mcfg.get("sync_fatigue_exponent", 1.0))
-    # Report-style coordination load: fatigue-weighted sync event minutes + weighted async message load.
-    sync_event_minutes = float(sum(project.escalated_per_tick))
-    sync_load = sync_fatigue_multiplier * (sync_event_minutes ** sync_fatigue_exponent)
+    # Report-style coordination load: fatigue-weighted sync person-minutes + weighted async message load.
+    sync_person_minutes = float(project.sync_minutes)
+    sync_load = sync_fatigue_multiplier * (sync_person_minutes ** sync_fatigue_exponent)
     c_load = sync_load + cognitive_lambda * float(project.messages_sent)
     c_load_per_ticket = c_load / max(1, tickets_processed)
     eta = s_task / (c_load_per_ticket + 1e-9)
 
     high_need_count = sum(project.high_need_per_tick)
     low_need_count = max(0, len(project.high_need_per_tick) - high_need_count)
-    false_alarm_rate = sum(project.false_alarm_per_tick) / max(1, low_need_count)
-    missed_escalation_rate = sum(project.missed_escalation_per_tick) / max(1, high_need_count)
+    fp = int(sum(project.false_alarm_per_tick))
+    fn = int(sum(project.missed_escalation_per_tick))
+    tp = int(sum(1 for h, e in zip(project.high_need_per_tick, project.escalated_per_tick) if h == 1 and e == 1))
+    tn = int(sum(1 for h, e in zip(project.high_need_per_tick, project.escalated_per_tick) if h == 0 and e == 0))
+
+    false_alarm_rate = fp / max(1, low_need_count)
+    missed_escalation_rate = fn / max(1, high_need_count)
+    trigger_precision = tp / max(1, tp + fp)
+    trigger_recall = tp / max(1, tp + fn)
+    trigger_specificity = tn / max(1, tn + fp)
+    trigger_f1 = (2.0 * trigger_precision * trigger_recall) / max(1e-9, trigger_precision + trigger_recall)
+    trigger_balanced_accuracy = 0.5 * (trigger_recall + trigger_specificity)
 
     return {
         "run_id": project.run_id,
@@ -381,11 +415,22 @@ def compute_run_metrics(project: ProjectState, cfg: Config, makespan: int) -> di
         "eta": eta,
         "false_alarm_rate": false_alarm_rate,
         "missed_escalation_rate": missed_escalation_rate,
+        "trigger_precision": trigger_precision,
+        "trigger_recall": trigger_recall,
+        "trigger_f1": trigger_f1,
+        "trigger_specificity": trigger_specificity,
+        "trigger_balanced_accuracy": trigger_balanced_accuracy,
+        "trigger_tp": tp,
+        "trigger_fp": fp,
+        "trigger_fn": fn,
+        "trigger_tn": tn,
         "total_rework_events": total_rework_events,
         "ticket_bounce_count": b_total,
         "avg_rework_per_task": total_rework_events / max(1, n_tasks),
         "avg_cascade_size": avg_cascade,
         "max_cascade_size": max_cascade,
+        "cascade_run_ge_1": 1.0 if max_cascade >= 1 else 0.0,
+        "cascade_run_ge_2": 1.0 if max_cascade >= 2 else 0.0,
         "makespan": makespan,
         "tasks_completed": project.done_count(),
         "sync_minutes": project.sync_minutes,
@@ -418,6 +463,7 @@ def run_single(
     run_id: int,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     rng = random.Random(cfg.seed + run_id)
+    rng_exogenous = random.Random(cfg.seed + run_id + 1_000_000)
     agents = build_agents(cfg, rng)
     tasks = build_tasks(cfg, agents, rng)
 
@@ -436,6 +482,8 @@ def run_single(
         project.rework_events_per_tick.append(0)
         project.signal_events_per_tick.append(0)
         project.noise_events_per_tick.append(0)
+        project.exogenous_signal_per_tick.append(0)
+        project.exogenous_noise_per_tick.append(0)
         roots_to_propagate: list[tuple[str, float]] = []
         messages_before_tick = project.messages_sent
 
@@ -448,7 +496,7 @@ def run_single(
             log_event(project, t, "SYNC_SESSION_START" if project.mode == Mode.SYNC else "SYNC_SESSION_END")
 
         # Periodic external requirement churn.
-        roots_to_propagate.extend(apply_exogenous_changes(project, cfg, t, rng))
+        roots_to_propagate.extend(apply_exogenous_changes(project, cfg, t, rng_exogenous))
 
         for agent in project.agents.values():
             task = pick_task_for_agent(agent.id, project.tasks)
@@ -551,22 +599,53 @@ def run_single(
         signal_weight = float(mcfg.get("demand_signal_weight", 1.0))
         noise_weight = float(mcfg.get("demand_noise_weight", 0.25))
         rework_weight = float(mcfg.get("demand_rework_weight", 0.5))
-        sync_supply_base = float(mcfg.get("sync_supply_base", 2.0))
-        async_supply_base = float(mcfg.get("async_supply_base", 0.8))
+        active_rework_weight = float(mcfg.get("demand_active_rework_weight", 0.35))
+        supply_agent_scale_sync = float(mcfg.get("supply_agent_scale_sync", 6.0))
+        supply_agent_scale_async = float(mcfg.get("supply_agent_scale_async", 4.0))
+        supply_busy_penalty = float(mcfg.get("supply_busy_penalty", 0.75))
         message_supply_factor = float(mcfg.get("message_supply_factor", 0.05))
-        gap_threshold = float(mcfg.get("gap_high_threshold", 1.0))
+        oracle_need_threshold = float(mcfg.get("oracle_need_threshold", mcfg.get("gap_high_threshold", 1.0)))
 
         signal_t = float(project.signal_events_per_tick[t])
         noise_t = float(project.noise_events_per_tick[t])
+        exo_signal_t = float(project.exogenous_signal_per_tick[t])
+        exo_noise_t = float(project.exogenous_noise_per_tick[t])
+        rework_events_t = float(project.rework_events_per_tick[t])
         active_rework = float(sum(1 for task in project.tasks.values() if task.state == TaskState.REWORK))
-        demand_t = signal_weight * signal_t + noise_weight * noise_t + rework_weight * active_rework
+        incoming_demand_t = (
+            signal_weight * signal_t
+            + noise_weight * noise_t
+            + rework_weight * rework_events_t
+            + active_rework_weight * active_rework
+        )
+        demand_t = project.coordination_backlog + incoming_demand_t
+        oracle_demand_t = signal_weight * exo_signal_t + noise_weight * exo_noise_t
 
         delta_messages = float(project.messages_sent - messages_before_tick)
-        supply_base = sync_supply_base if project.mode == Mode.SYNC else async_supply_base
-        supply_t = supply_base + message_supply_factor * delta_messages
+        busy_by_agent = {
+            aid: any(
+                task.owner_agent_id == aid and task.state in (TaskState.IN_PROGRESS, TaskState.REWORK, TaskState.READY_FOR_TEST)
+                for task in project.tasks.values()
+            )
+            for aid in project.agents
+        }
+        agent_supply = sum(
+            _agent_coord_capacity(
+                agent=agent,
+                mode=project.mode,
+                mode_scale_async=supply_agent_scale_async,
+                mode_scale_sync=supply_agent_scale_sync,
+                busy_penalty=supply_busy_penalty,
+                is_busy=busy_by_agent.get(agent.id, False),
+            )
+            for agent in project.agents.values()
+        )
+        supply_t = agent_supply + message_supply_factor * delta_messages
+        project.coordination_backlog = max(0.0, demand_t - supply_t)
         gap_t = demand_t - supply_t
 
-        high_need = 1 if gap_t >= gap_threshold else 0
+        # Policy-independent trigger target: classify need from exogenous pressure only.
+        high_need = 1 if oracle_demand_t >= oracle_need_threshold else 0
         escalated = 1 if project.mode == Mode.SYNC else 0
         false_alarm = 1 if (escalated == 1 and high_need == 0) else 0
         missed_escalation = 1 if (high_need == 1 and escalated == 0) else 0

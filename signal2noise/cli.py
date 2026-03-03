@@ -144,6 +144,7 @@ def _run_multiple(multiple_cfg: dict[str, Any]) -> tuple[list[dict[str, Any]], l
             new = old + run_id_offset
             run_id_map[old] = new
             r["run_id"] = new
+            r["seed_run_id"] = old
             r["multiple_point"] = combo_idx
             for k, v in combo.items():
                 r[k] = v
@@ -163,7 +164,9 @@ def _run_multiple(multiple_cfg: dict[str, Any]) -> tuple[list[dict[str, Any]], l
             all_cascades.append(c)
 
         for ts in timeseries:
-            ts["run_id"] = run_id_map[int(ts["run_id"])]
+            old_ts_run_id = int(ts["run_id"])
+            ts["run_id"] = run_id_map[old_ts_run_id]
+            ts["seed_run_id"] = old_ts_run_id
             ts["multiple_point"] = combo_idx
             for k, v in combo.items():
                 ts[k] = v
