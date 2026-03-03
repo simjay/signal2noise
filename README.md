@@ -2,7 +2,7 @@
 
 Agent-based simulation of adaptive coordination protocols in software teams.
 
-Built for the CAS 2026 paper: *"The Communication Valve: When Synchronous Coordination Becomes the Signal."*
+Built for the CAS 2026 paper: *"Signal-to-Noise: Rework Propagation as a Phase Transition Trigger in Socio-Technical Systems"*
 
 ## Installation
 

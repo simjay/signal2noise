@@ -2,8 +2,7 @@
 
 An agent-based model (ABM) for investigating how adaptive coordination
 protocols affect team efficiency in software development workflows.
-Built for the CAS 2026 paper: *"The Communication Valve: When Synchronous
-Coordination Becomes the Signal."*
+Built for the CAS 2026 paper: *"Signal-to-Noise: Rework Propagation as a Phase Transition Trigger in Socio-Technical Systems"*
 
 ## Research Question
 
