@@ -64,9 +64,9 @@ results = sweep.run()
 
 ## Documentation
 
-- [Dataset analysis](docs/dataset.md) -- Jira calibration data and extracted parameters
-- [Experiment design](docs/experiment.md) -- ABM formulation, protocols, metrics, hypotheses
-- [Results](docs/results.md) -- Experiment outcomes and implications for the paper
+- [Dataset analysis](docs/dataset.md): Jira calibration data and extracted parameters
+- [Experiment design](docs/experiment.md): ABM formulation, protocols, metrics, hypotheses
+- [Results](docs/results.md): Experiment outcomes and implications for the paper
 
 ## Project Structure
 
