@@ -83,7 +83,7 @@ class SimulationConfig:
     natural_decay: float = 0.01
 
     # Communication
-    lambda_async: float = 0.5
+    lambda_async: float = 0.2
     sync_error_reduction: float = 0.4
 
     # Rework cost: fraction of base_effort required per rework cycle.

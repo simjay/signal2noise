@@ -1,19 +1,13 @@
 # Dataset Analysis
 
-Calibration data for the simulation is derived from a public Jira issue-tracking dataset.
+This document describes the public Jira dataset used to calibrate
+simulation parameters: derived columns, key findings, and extracted
+values.
 
 ## Source
 
 - Raw: `data/jira-social-repository/emotion_dataset_jira.sql`
 - Derived features: `data/derived/jira_calibration.csv`
-
-## Coverage
-
-| Stat | Value |
-|------|-------|
-| Resolved issues | 586,084 |
-| Time span | 2002-07-16 to 2014-01-06 |
-| `fix_time` availability | 99.997% |
 
 ## Derived columns
 
@@ -22,7 +16,15 @@ Calibration data for the simulation is derived from a public Jira issue-tracking
 | `fix_time` | Days from issue created to resolved |
 | `rework` | 1 if issue was reopened after done/resolved, else 0 |
 | `post_done_change` | 1 if issue changed after done/resolved, else 0 |
-| `cascade_size` | Proxy count of nearby reopen events in same project/time window |
+| `cascade_size` | Count of other reopen events in the same project within a 7-day window; a proxy for propagation (direct causal links are unavailable) |
+
+## Coverage
+
+| Stat | Value |
+|------|-------|
+| Resolved issues | 586,084 |
+| Time span | 2002-07-16 to 2014-01-06 |
+| `fix_time` availability | 99.997% (fraction of rows with non-null value) |
 
 ## Key findings
 
@@ -50,42 +52,38 @@ Calibration data for the simulation is derived from a public Jira issue-tracking
 ### Post-done changes are common
 
 - Post-done change rate: **59.77%** (350,316 rows)
-- All reworked issues had a post-done change (`P(post_done_change | rework) = 1.0`)
+- Every reworked issue also had a post-done change (`P(post_done_change | rework) = 1.0`)
 
 ### Cascades are extremely sparse
 
 - Zero-cascade rows: **99.918%**
 - Only 478 rows (0.08%) have cascade >= 1
 - Max cascade observed: 44
-- `P(cascade >= 1 | post_done_change) = 0.14%`
-- `P(rework | cascade >= 1) = 31.8%`
+- Of issues with a post-done change, only 0.14% have a cascade
+- Of issues with cascade >= 1, 31.8% were reworked
 
 ### Interpretation
 
-Many issues keep changing after "done," but only a tiny fraction lead to actual rework. Cascade proxy values are almost always zero, so direct fitting produces very low baseline propagation. Fix-time has a huge long tail that does not map cleanly to per-task simulation effort.
+Most issues keep changing after "done," but very few lead to actual
+rework. Cascade values are almost always zero, so direct fitting
+produces very low baseline propagation. Fix-time has a long tail that
+does not map cleanly to per-task simulation effort.
 
-## Extracted parameters
+## Extracted parameters and simulation usage
 
-| Parameter | Value | Source |
-|-----------|-------|--------|
-| `rework_rate` | 0.000495 | Direct from data |
-| `mean_cascade_size` | 0.00380 | Direct from data |
-| `post_done_change_rate` | 0.5977 | Direct from data |
-| `p_change_per_day` | 0.001531 | SQL pass using active done-days |
-| `task_effort_distribution` | lognormal(mean=1.93, sigma=3.57) | Calibrated candidate |
-| `defect_rate` | fixed 0.001 | Calibrated candidate |
-| `base_propagation` | 0.05 | Floor-clamped |
+Not all extracted values are used as simulation inputs. Some are
+descriptive only, some are used directly, and some were replaced to suit
+the simulation's mechanics. See [experiment.md](experiment.md) for model
+definitions of *tick*, *agent*, and *cognitive load*.
 
-## Adjustments for simulation
-
-The raw/calibrated values needed several adjustments before use:
-
-**`p_change`**: The row-average post-done change rate (0.5977) is not a per-tick probability. We use the per-day hazard rate (0.001531) instead, which is appropriate for simulation tick scale.
-
-**`base_propagation`**: Kept at the floor value (0.05) because the cascade proxy is too sparse for meaningful fitting.
-
-**`defect_rate`**: Changed from fixed 0.001 to `beta(a=2.0, b=20.0)` to maintain heterogeneity across agents and avoid a near-zero defect regime.
-
-**`task_effort_distribution`**: Changed from lognormal(1.93, 3.57) to lognormal(2.0, 0.35). The Jira lifecycle times are much broader than per-task coding effort; direct use would produce unreasonable run durations.
+| Parameter | Value (from data) | Used in sim? | Simulation value | Why | What it does | Unit |
+|-----------|-------------------|--------------|------------------|-----|--------------|------|
+| `rework_rate` | 0.000495 | No | - | Descriptive. Rework emerges from `base_error_rate`, `p_signal_change`, and `p_cascade`. | Fraction of issues reopened after done | - |
+| `mean_cascade_size` | 0.00380 | No | - | Descriptive. Cascades controlled by `p_cascade` and `max_cascade_depth`. | Average cascade proxy per issue | - |
+| `post_done_change_rate` | 0.5977 | No | - | Aggregate rate, not a per-tick probability. See `p_change_per_day`. | Fraction of issues that ever changed after done | - |
+| `p_change_per_day` | 0.001531 | Yes | 0.001531 | Daily hazard rate is the correct form for per-tick simulation. Both this and `post_done_change_rate` come from the same data. | Probability a "done" issue changes on a given tick | per tick |
+| `base_propagation` | 0.05 (floor-clamped from ~0.004) | Yes | 0.05 | Raw fitted value ~0.004 was too low for observable cascades; floor applied during extraction. | Probability rework propagates to an upstream dependency | per event |
+| `defect_rate` | 0.001 (fixed) | Yes (replaced) | beta(a=2.0, b=20.0), E[x]~0.091 | Fixed value gives no agent heterogeneity and near-zero defects. Replaced with a distribution. | Base probability an agent introduces a defect | per validation |
+| `task_effort_distribution` | lognormal(mu=1.93, sigma=3.57) | Yes (replaced) | lognormal(mu=2.0, sigma=0.35) | Fitted sigma reflects Jira lifecycle times (days to years), far broader than per-task coding effort. Tighter sigma concentrates values around exp(2.0) ~ 7.4. | Work units to complete a task | work units |
 
 **Experiment structure parameters** (team size, task count, tick count, sweep grid) are design choices, not Jira-fitted values.

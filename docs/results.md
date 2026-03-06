@@ -1,27 +1,43 @@
 # Experiment Results
 
-Results from the CAS 2026 paper experiment (100 replications per
-configuration, seed_base=42, 5 agents, 20 tasks, tree topology).
+The adaptive protocol (Group C) outperforms both baselines on eta*:
++1.7% over async-only and +20.2% over sync-always (best tau = 0.80).
+All four hypotheses evaluated below.
 
-See [experiment.md](experiment.md) for the full experiment design and
+100 replications per configuration, seed_base=42, 5 agents, 20 tasks,
+tree topology. See [experiment.md](experiment.md) for design and
 parameter definitions.
+
+## Conventions
+
+- **95% CI**: half-width of the 95% confidence interval (t-distribution, n=100).
+- **TTC**: Time To Completion (ticks until all tasks DONE).
+- **C\***: best adaptive configuration (tau = 0.80, highest mean eta*).
+- **Total overhead**: `T_cost + T_rework`. Std/CI omitted (components reported individually).
 
 ## Group A: Async Only
 
+Highest raw throughput and low coordination cost, but significant
+rework cost from lacking a sync channel.
+
 | Metric | Mean | Std | 95% CI |
 |--------|------|-----|--------|
-| eta* (rework-adjusted) | 2.2195 | 1.2839 | 0.2516 |
-| eta (legacy) | 2.4170 | 1.3357 | 0.2618 |
+| eta* (rework-adjusted) | 2.5803 | 1.6339 | 0.3202 |
+| eta (legacy) | 2.8503 | 1.7243 | 0.3380 |
 | TaskScore | 90.86 | 3.44 | 0.67 |
 | Ticket bounce rate | 1.5965 | 1.4598 | 0.2861 |
-| Coordination cost (T_cost) | 63.85 | 42.71 | 8.37 |
+| Coordination cost (T_cost) | 25.54 | 8.54 | 1.67 |
 | Rework cost (T_rework) | 31.93 | 29.20 | 5.72 |
-| Total overhead | 95.78 | -- | -- |
-| Time to completion | 41.95 | 32.45 | 6.36 |
+| Total overhead | 57.47 | -- | -- |
+| TTC | 41.95 | 32.45 | 6.36 |
 | Throughput | 0.7023 | 0.3856 | 0.0756 |
 | Channel utilization | 0.0000 | -- | -- |
 
 ## Group B: Sync Always
+
+Moderate coordination cost, but cumulative cognitive load from constant
+meetings degrades error rates, producing the highest bounce rate and
+rework cost of all groups.
 
 | Metric | Mean | Std | 95% CI |
 |--------|------|-----|--------|
@@ -32,28 +48,44 @@ parameter definitions.
 | Coordination cost (T_cost) | 49.03 | 38.99 | 7.64 |
 | Rework cost (T_rework) | 39.14 | 35.80 | 7.02 |
 | Total overhead | 88.17 | -- | -- |
-| Time to completion | 49.03 | 38.99 | 7.64 |
+| TTC | 49.03 | 38.99 | 7.64 |
 | Throughput | 0.6315 | 0.3743 | 0.0734 |
 | Channel utilization | 1.0000 | -- | -- |
 
 ## Group C: Adaptive (tau sweep)
 
+eta* increases with tau, peaking at 0.80. Higher thresholds keep the
+valve closed more often, preserving focused work time and limiting
+cognitive load buildup.
+
 | tau | eta* mean | eta* std | eta* CI95 | Bounce rate | T_rework | T_cost | TTC |
 |-----|-----------|----------|-----------|-------------|----------|--------|-----|
-| 0.05 | 2.3781 | 1.4482 | 0.2839 | 1.6825 | 33.65 | 47.28 | 44.4 |
-| 0.10 | 2.3781 | 1.4482 | 0.2839 | 1.6825 | 33.65 | 47.28 | 44.4 |
-| 0.15 | 2.3781 | 1.4482 | 0.2839 | 1.6825 | 33.65 | 47.28 | 44.4 |
-| 0.20 | 2.3817 | 1.4545 | 0.2851 | 1.6810 | 33.62 | 47.44 | 44.4 |
-| 0.25 | 2.4187 | 1.4679 | 0.2877 | 1.6485 | 32.97 | 46.84 | 43.8 |
-| 0.30 | 2.4187 | 1.4679 | 0.2877 | 1.6485 | 32.97 | 46.84 | 43.8 |
-| 0.35 | 2.3855 | 1.4303 | 0.2803 | 1.6530 | 33.06 | 46.77 | 43.4 |
-| 0.40 | 2.3817 | 1.4498 | 0.2842 | 1.6295 | 32.59 | 47.38 | 43.7 |
-| 0.50 | 2.4367 | 1.4200 | 0.2783 | 1.5410 | 30.82 | 46.07 | 41.8 |
-| 0.60 | 2.4309 | 1.4309 | 0.2804 | 1.5445 | 30.89 | 46.38 | 42.0 |
-| 0.70 | 2.4136 | 1.3424 | 0.2631 | 1.3985 | 27.97 | 45.03 | 39.8 |
-| **0.80** | **2.4585** | 1.3670 | 0.2679 | **1.3890** | **27.78** | 45.37 | 39.9 |
+| 0.05 | 2.4863 | 1.6233 | 0.3182 | 1.6825 | 33.65 | 42.03 | 44.4 |
+| 0.10 | 2.4863 | 1.6233 | 0.3182 | 1.6825 | 33.65 | 42.03 | 44.4 |
+| 0.15 | 2.4863 | 1.6233 | 0.3182 | 1.6825 | 33.65 | 42.03 | 44.4 |
+| 0.20 | 2.4919 | 1.6326 | 0.3200 | 1.6810 | 33.62 | 42.12 | 44.4 |
+| 0.25 | 2.5348 | 1.6458 | 0.3226 | 1.6485 | 32.97 | 41.46 | 43.8 |
+| 0.30 | 2.5348 | 1.6458 | 0.3226 | 1.6485 | 32.97 | 41.46 | 43.8 |
+| 0.35 | 2.5066 | 1.6147 | 0.3165 | 1.6530 | 33.06 | 41.03 | 43.4 |
+| 0.40 | 2.5116 | 1.6703 | 0.3274 | 1.6295 | 32.59 | 41.34 | 43.7 |
+| 0.50 | 2.5785 | 1.6453 | 0.3225 | 1.5410 | 30.82 | 39.37 | 41.8 |
+| 0.60 | 2.5764 | 1.6632 | 0.3260 | 1.5445 | 30.89 | 39.53 | 42.0 |
+| 0.70 | 2.5654 | 1.5722 | 0.3081 | 1.3985 | 27.97 | 37.38 | 39.8 |
+| **0.80** | **2.6230** | 1.6141 | 0.3164 | **1.3890** | **27.78** | 37.42 | 39.9 |
 
-Best adaptive configuration: **tau = 0.80** with eta* = 2.4585.
+Best adaptive configuration: **tau = 0.80** with eta* = 2.6230.
+
+### C* summary (tau = 0.80, comparable to Groups A and B)
+
+| Metric | Mean | Std | 95% CI |
+|--------|------|-----|--------|
+| eta* (rework-adjusted) | 2.6230 | 1.6141 | 0.3164 |
+| Ticket bounce rate | 1.3890 | 1.2634 | 0.2476 |
+| Coordination cost (T_cost) | 37.42 | 30.39 | 5.96 |
+| Rework cost (T_rework) | 27.78 | 25.27 | 4.95 |
+| Total overhead | 65.20 | -- | -- |
+| TTC | 39.9 | 30.09 | 5.90 |
+| Throughput | 0.7320 | 0.3854 | 0.0755 |
 
 ## Hypothesis Evaluation
 
@@ -65,100 +97,78 @@ Best adaptive configuration: **tau = 0.80** with eta* = 2.4585.
 | Rework cost | 31.93 | 27.78 | -13.0% |
 | Throughput | 0.7023 | 0.7320 | 104% of A |
 
-**Result: YES.** Adaptive reduces bounce rate by 13.0% while maintaining
-104% of async-only throughput (well above the 90% threshold).
+**Result: SUPPORTED.** Bounce rate down 13.0%, throughput at 104% of A
+(above the 90% threshold).
 
 ### H2: Adaptive has highest eta*
 
 | Group | eta* |
 |-------|------|
-| A (async-only) | 2.2195 |
+| A (async-only) | 2.5803 |
 | B (sync-always) | 2.1819 |
-| C* (adaptive, tau=0.80) | 2.4585 |
+| C* (adaptive, tau=0.80) | 2.6230 |
 
-- vs async-only: **+10.8%**
-- vs sync-always: **+12.7%**
+- vs async-only: **+1.7%**
+- vs sync-always: **+20.2%**
 
-**Result: YES.** Adaptive achieves the highest rework-adjusted
-efficiency, outperforming both baselines.
+**Result: SUPPORTED.** Adaptive achieves the highest eta*, outperforming
+both baselines. The margin over async-only is narrow (+1.7%) but
+positive: adaptive's lower rework cost (27.78 vs 31.93) more than
+compensates for its higher coordination cost (37.42 vs 25.54).
+
+Sync-always performs worst on eta* despite having a dedicated channel.
+Persistent meetings add CL of +0.08/tick (`0.40 * 0.20`). As agents
+approach CL = 1.0, the error multiplier reaches 3.5x (`1 + 2.5 * 1.0`),
+overwhelming the 40% sync error reduction (0.6x). Sync-always ends up
+with the highest bounce rate (1.96) and highest T_rework (39.14).
 
 ### H3: Phase transition exists
 
-The numerical derivative d(eta*)/d(tau) across the tau sweep shows a
-peak at tau=0.50 where eta* jumps noticeably. However, the maximum
-absolute derivative is modest -- the transition is gradual rather than
-sharp. The critical threshold tau* sits around 0.50, where the valve
-begins to open less frequently and allow more focused async work.
+d(eta*)/d(tau) peaks at tau = 0.50 where eta* jumps noticeably, though
+the transition is gradual rather than sharp. tau* ~ 0.50. See the
+`viz/` module for eta* vs tau plots.
 
-**Result: YES** (with caveat that the transition is smooth rather than
-discontinuous).
+**Result: SUPPORTED** (smooth transition, not discontinuous).
 
 ### H4: Adaptive minimises total overhead
 
 | Group | T_cost + T_rework |
 |-------|-------------------|
-| A (async-only) | 95.78 |
+| A (async-only) | 57.47 |
 | B (sync-always) | 88.17 |
-| C* (adaptive, tau=0.80) | 73.15 |
+| C* (adaptive, tau=0.80) | 65.20 |
 
-- vs async-only: **-23.6%**
-- vs sync-always: **-17.0%**
+- vs async-only: **+13.5%**
+- vs sync-always: **-26.0%**
 
-**Result: YES.** Adaptive achieves the lowest total overhead by a
-significant margin.
+**Result: PARTIALLY SUPPORTED.** Adaptive has much lower overhead than
+sync-always (-26.0%) but higher than async-only (+13.5%). Async-only's
+low coordination cost (25.54) gives it the lowest total overhead despite
+its higher rework. The adaptive protocol minimises rework cost
+specifically, not total overhead.
 
 ### Overall
 
-All four hypotheses are supported. The Communication Valve (adaptive
-protocol) produces the highest eta* and lowest total overhead.
+H1, H2, and H3 are supported. H4 is partially supported: adaptive
+beats sync-always but not async-only on total overhead. The adaptive
+protocol's primary advantage is achieving the highest eta* by balancing
+coordination cost against rework reduction.
 
-## Key Insights
+## Implications
 
-**Why async-only loses on eta\***: despite zero sync cost, async-only
-accumulates rework because agents lack the high-bandwidth channel to
-coordinate on error resolution. T_rework = 31.93 and the bounce rate
-of 1.60 means tasks bounce back 1.6x on average. The rework waste
-overwhelms the efficiency gain from never attending meetings.
+1. **Rework propagation creates a coordination demand signal** usable
+   for adaptive sync triggering.
 
-**Why sync-always loses on eta\***: persistent meetings keep T_cost
-moderate (49.03) but cognitive load accumulation degrades error rates
-over time. Surprisingly, sync-always has the *highest* bounce rate
-(1.96) and T_rework (39.14) -- the cognitive fatigue from constant
-meetings actually *increases* errors, overwhelming the 40% sync error
-reduction.
+2. **eta\* is necessary** to reveal the true cost structure. The legacy
+   eta would rank async-only higher, masking rework waste.
 
-**Why adaptive wins**: the Communication Valve activates sync only when
-rework signals demand it. At tau=0.80, the valve opens infrequently
-(channel utilization = 70%) but targets the moments when sync is most
-valuable. This produces:
-- The lowest rework cost (27.78) -- 13% less than async-only
-- The fastest completion time (39.9 ticks)
-- The highest throughput (0.732 tasks/tick)
-- The lowest total overhead (73.15) -- 24% less than async-only
+3. **The adaptive advantage is in the eta\* balance**, not in minimising
+   total overhead alone. It achieves the best trade-off between
+   coordination cost and rework cost.
 
-## Implications for the Paper
+4. **Higher tau values perform better** here, suggesting a conservative
+   valve (open only under high rework pressure). Consistent with CL
+   penalty making unnecessary meetings harmful.
 
-These results support the central thesis of the CAS 2026 paper:
-
-1. **Rework propagation creates a coordination demand signal** that can
-   be used to trigger sync meetings adaptively, rather than maintaining
-   them constantly or avoiding them entirely.
-
-2. **The rework-adjusted efficiency metric eta\*** is necessary to
-   reveal the true cost structure. The legacy metric eta (without rework
-   adjustment) would have ranked async-only highest, masking the hidden
-   rework waste.
-
-3. **The adaptive protocol's advantage comes from minimising the sum
-   T_cost + T_rework**, not from minimising either component alone.
-   This is the "communication valve" insight -- sync is a tool to be
-   deployed when the rework signal warrants it.
-
-4. **Higher tau values perform better** in this configuration, suggesting
-   that the valve should be conservative (only open under high rework
-   pressure). This is consistent with the cognitive load penalty making
-   unnecessary meetings actively harmful.
-
-5. **The phase transition at tau\*** provides a practical calibration
-   target for real teams: measure your rework rate and set the sync
-   trigger threshold accordingly.
+5. **tau\* provides a calibration target** for real teams: measure
+   rework rate and set the sync threshold accordingly.

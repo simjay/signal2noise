@@ -1,4 +1,4 @@
-# Signal-to-Noise
+# Signal to Noise
 
 Agent-based simulation of adaptive coordination protocols in software teams.
 
